@@ -54,15 +54,24 @@ Output is in `dist/`. For a local production preview:
 npm run preview
 ```
 
-## GitHub Pages
+## GitHub Pages (live site)
 
-This repo includes a workflow (`.github/workflows/deploy-pages.yml`) that builds with `npm ci` and deploys `dist/` to **GitHub Pages**.
+The workflow [Deploy to GitHub Pages](.github/workflows/deploy-pages.yml) builds the app with `npm ci && npm run build` and publishes the `dist/` folder whenever you push to `main` (or when you run the workflow manually).
 
-1. Push to `main` (or run the workflow manually).
-2. In the repository: **Settings → Pages → Build and deployment**, set the source to **GitHub Actions**.
-3. The site is served at `https://<user>.github.io/<repo>/`. The workflow sets `VITE_BASE_PATH` to `/<repository-name>/` so assets resolve correctly.
+**Live URL (after setup):** [https://hema986.github.io/mortgage-pro/](https://hema986.github.io/mortgage-pro/)
 
-For local dev, `VITE_BASE_PATH` defaults to `/` (see `vite.config.ts`).
+### First-time setup on GitHub
+
+You only need to do this once per repository:
+
+1. Open **[repo Settings → Pages](https://github.com/hema986/mortgage-pro/settings/pages)**.
+2. Under **Build and deployment → Source**, choose **GitHub Actions** (not “Deploy from a branch”).
+3. Open the **[Actions](https://github.com/hema986/mortgage-pro/actions)** tab and confirm the **Deploy to GitHub Pages** workflow run is green. If GitHub asks to approve the `github-pages` environment the first time, approve it.
+4. After a successful deploy, open the live URL above. It can take a minute for the CDN to update.
+
+To deploy again: push to `main`, or go to **Actions → Deploy to GitHub Pages → Run workflow**.
+
+The workflow sets `VITE_BASE_PATH` to `/<repository-name>/` so JS/CSS paths work under `github.io/<repo>/`. For local development, `vite.config.ts` defaults the base to `/`.
 
 ## Scripts
 
