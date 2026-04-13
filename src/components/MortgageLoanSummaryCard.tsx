@@ -65,9 +65,9 @@ function StatTile({
       elevation={0}
       variant="outlined"
       sx={(t) => ({
-        p: 1.35,
+        p: { xs: 0.85, sm: 1 },
         height: "100%",
-        borderRadius: 2,
+        borderRadius: 1.5,
         borderColor: alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.22 : 0.35),
         background:
           t.palette.mode === "light"
@@ -84,7 +84,7 @@ function StatTile({
           fontSize: "0.65rem",
           color: t.palette.text.secondary,
           display: "block",
-          mb: 0.35,
+          mb: 0.2,
         })}
       >
         {kicker}
@@ -95,15 +95,15 @@ function StatTile({
           fontWeight: 800,
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "-0.03em",
-          lineHeight: 1.15,
-          fontSize: { xs: "1.05rem", sm: "1.2rem" },
+          lineHeight: 1.12,
+          fontSize: { xs: "1rem", sm: "1.1rem" },
           color: t.palette.mode === "light" ? t.palette.primary.dark : t.palette.primary.light,
         })}
       >
         {value}
       </Typography>
       {hint ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, lineHeight: 1.35 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25, lineHeight: 1.25, fontSize: "0.68rem" }}>
           {hint}
         </Typography>
       ) : null}
@@ -111,18 +111,18 @@ function StatTile({
   );
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
+function SectionTitle({ children, tightTop }: { children: ReactNode; tightTop?: boolean }) {
   return (
     <Typography
       variant="overline"
       sx={(t) => ({
         display: "block",
         fontWeight: 800,
-        letterSpacing: "0.1em",
+        letterSpacing: "0.08em",
         color: t.palette.primary.main,
-        mt: 2,
-        mb: 0.75,
-        fontSize: "0.68rem",
+        mt: tightTop ? 0.35 : 1,
+        mb: 0.35,
+        fontSize: "0.65rem",
       })}
     >
       {children}
@@ -136,17 +136,17 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       direction="row"
       justifyContent="space-between"
       alignItems="center"
-      gap={2}
+      gap={1.5}
       sx={(t) => ({
-        py: 0.85,
-        px: 1,
-        mx: -1,
+        py: 0.4,
+        px: 0.5,
+        mx: -0.5,
         borderRadius: 1,
         borderBottom: `1px solid ${alpha(t.palette.divider, 0.9)}`,
         "&:hover": { bgcolor: alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.04 : 0.08) },
       })}
     >
-      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35, fontSize: "0.8125rem" }}>
+      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.25, fontSize: "0.78rem" }}>
         {label}
       </Typography>
       <Typography
@@ -155,8 +155,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
           fontWeight: 700,
           fontVariantNumeric: "tabular-nums",
           textAlign: "right",
-          fontSize: "0.8125rem",
-          lineHeight: 1.35,
+          fontSize: "0.78rem",
+          lineHeight: 1.25,
           flexShrink: 0,
         }}
       >
@@ -193,8 +193,8 @@ export function MortgageLoanSummaryCard({
     >
       <Box
         sx={(t) => ({
-          px: 2,
-          py: 1.5,
+          px: 1.5,
+          py: 1,
           background:
             t.palette.mode === "light"
               ? `linear-gradient(110deg, ${alpha(t.palette.primary.main, 0.12)} 0%, ${alpha(t.palette.secondary.main, 0.08)} 100%)`
@@ -206,38 +206,34 @@ export function MortgageLoanSummaryCard({
         <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: "0.12em", opacity: 0.9 }}>
           Loan summary
         </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "-0.02em", mt: 0.25 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 800, letterSpacing: "-0.02em", mt: 0.15, fontSize: "1rem" }}>
           At a glance
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, lineHeight: 1.4 }}>
-          Key numbers for this scenario — same data as before, easier to scan.
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.35, lineHeight: 1.3, fontSize: "0.7rem" }}>
+          Key numbers for this scenario.
         </Typography>
       </Box>
 
-      <CardContent sx={{ pt: 2, pb: 2, px: 2 }}>
-        <Grid container spacing={1.25}>
+      <CardContent sx={{ pt: 1.25, pb: 1.25, px: 1.5, "&:last-child": { pb: 1.25 } }}>
+        <Grid container spacing={0.75}>
           <Grid size={{ xs: 12, sm: 4 }}>
             <StatTile kicker="Loan amount" value={money.format(breakdown.loanAmount)} hint="Financed at purchase" />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
             <StatTile
-              kicker="P&I / month"
+              kicker="P&amp;I / month"
               value={hasLoan ? moneyDec.format(breakdown.principalAndInterest) : "—"}
-              hint="Principal + interest only"
+              hint="Principal + interest"
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <StatTile
-              kicker="Cash to close"
-              value={money.format(cashToClose)}
-              hint="Down + closing + misc"
-            />
+            <StatTile kicker="Cash to close" value={money.format(cashToClose)} hint="Down + closing + misc" />
           </Grid>
         </Grid>
 
-        <Divider sx={{ my: 2 }} />
+        <Divider sx={{ my: 0.75 }} />
 
-        <SectionTitle>Purchase &amp; equity</SectionTitle>
+        <SectionTitle tightTop>Purchase &amp; equity</SectionTitle>
         <Stack spacing={0}>
           <DetailRow
             label="Down payment"
@@ -293,8 +289,8 @@ export function MortgageLoanSummaryCard({
             ) : null}
           </>
         ) : (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, lineHeight: 1.45 }}>
-            Enter a purchase price and down payment on the Mortgage tab to see loan terms and life-of-loan totals.
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, lineHeight: 1.35 }}>
+            Enter purchase price and down payment to see loan terms and life-of-loan totals.
           </Typography>
         )}
       </CardContent>
