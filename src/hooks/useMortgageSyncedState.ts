@@ -34,7 +34,14 @@ export function useMortgageSyncedState() {
 
   const patch = useCallback((partial: Partial<AppPersisted>) => {
     setState((prev) => {
-      const next = { ...prev, ...partial, v: SCHEMA_VERSION };
+      const normalized =
+        partial.extraPrincipalMonthly !== undefined
+          ? {
+              ...partial,
+              extraPrincipalMonthly: Math.max(0, Math.round(Number(partial.extraPrincipalMonthly) || 0)),
+            }
+          : partial;
+      const next = { ...prev, ...normalized, v: SCHEMA_VERSION };
       const apr = impliedAnnualAppreciationPercent(
         next.homePrice,
         next.currentHomeValue,

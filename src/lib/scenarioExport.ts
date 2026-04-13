@@ -1,6 +1,7 @@
 import type { AppPersisted } from "../storage/mortgageState";
 import {
   buildAmortizationSchedule,
+  buildAmortizationScheduleWithExtraPrincipal,
   computeMonthlyPayment,
   impliedAnnualAppreciationPercent,
   scheduleTotals,
@@ -24,7 +25,11 @@ export const SCENARIO_EXPORT_FORMULAS: Record<string, string> = {
   netProceedsAtSale:
     "max(0, futureHomeValue - remainingLoanBalance - futureHomeValue * sellClosingCostPercent/100).",
   monthlyPayment:
-    "Fixed-rate amortizing P&I from loan amount, APR, term; property tax, insurance, and HOA added per month in MonthlyBreakdown.",
+    "Fixed-rate amortizing P&I from loan amount, APR, term; property tax, insurance, HOA, and optional PMI per month in MonthlyBreakdown.",
+  extraPrincipalMonthly:
+    "Optional add-on principal each month: same scheduled P&I as the no-prepay loan; surplus reduces balance early (Mortgage tab schedule used for refi/yearly views; rental / other paths may use standard amortization).",
+  refiBreakevenSimple:
+    "P&I savings = current P&I − new fixed P&I on refinanced balance; payback (months) = refi closing costs / monthly savings when savings > 0. Remaining balance can be snapped from the modeled schedule by completed loan year.",
   rentalGsiEgi:
     "GSI = monthlyRent + otherMonthlyIncome; vacancy loss = GSI * vacancyRatePercent/100; EGI = GSI - vacancy loss.",
   rentalNoi:
@@ -51,7 +56,8 @@ export function buildFullScenarioExport(state: AppPersisted) {
     termYears,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
   const monthly30 = computeMonthlyPayment(
     hp,
@@ -60,7 +66,8 @@ export function buildFullScenarioExport(state: AppPersisted) {
     30,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
   const monthly15 = computeMonthlyPayment(
     hp,
@@ -69,11 +76,17 @@ export function buildFullScenarioExport(state: AppPersisted) {
     15,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
 
   const schedTerm = buildAmortizationSchedule(loanAmount, apr, termYears);
   const totalsTerm = scheduleTotals(schedTerm);
+  const schedPrepay =
+    state.extraPrincipalMonthly > 0
+      ? buildAmortizationScheduleWithExtraPrincipal(loanAmount, apr, termYears, state.extraPrincipalMonthly)
+      : null;
+  const totalsPrepay = schedPrepay ? scheduleTotals(schedPrepay) : null;
 
   const rentalTerm = computeRentalAnalysis(state, monthlyScenario);
   const rental30 = computeRentalAnalysis(state, monthly30);
@@ -128,6 +141,17 @@ export function buildFullScenarioExport(state: AppPersisted) {
           totalInterest: totalsTerm.totalInterest,
           totalPrincipal: totalsTerm.totalPrincipal,
         },
+        amortizationWithExtraPrincipalWhenSet:
+          schedPrepay && totalsPrepay
+            ? {
+                extraPrincipalMonthly: state.extraPrincipalMonthly,
+                months: schedPrepay.length,
+                totalInterest: totalsPrepay.totalInterest,
+                totalPrincipal: totalsPrepay.totalPrincipal,
+                interestSavedVsNoPrepay: totalsTerm.totalInterest - totalsPrepay.totalInterest,
+                monthsShortenedVsNoPrepay: schedTerm.length - schedPrepay.length,
+              }
+            : null,
         firstAmortizationRow: schedTerm[0] ?? null,
         lastAmortizationRow: schedTerm.length > 0 ? schedTerm[schedTerm.length - 1] ?? null : null,
       },

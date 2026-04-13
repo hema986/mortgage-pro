@@ -1,6 +1,12 @@
 import type { MonthlyBreakdown } from "./mortgageMath";
 import type { AppPersisted } from "../storage/mortgageState";
 
+/** P&amp;I row id for `sellRentalYieldInclude` (matches pro-forma). */
+export const RENTAL_YIELD_PI_ID = "pi";
+
+/** PMI row id for `sellRentalYieldInclude` (matches pro-forma / composition). */
+export const RENTAL_YIELD_PMI_ID = "pmi";
+
 export type RentalLineItem = { id: string; label: string; amount: number };
 
 export type RentalPieSlice = { id: string; label: string; amount: number };
@@ -14,6 +20,7 @@ export type RentalAnalysis = {
   noiAnnual: number;
   capRate: number;
   principalAndInterestMonthly: number;
+  pmiMonthly: number;
   cashFlowMonthly: number;
   cashFlowAnnual: number;
   initialCashInvested: number;
@@ -61,7 +68,8 @@ export function computeRentalAnalysis(
   const capRate = purchasePrice > 0 ? noiAnnual / purchasePrice : 0;
 
   const pi = mortgage.principalAndInterest;
-  const cashFlowMonthly = noiMonthly - pi;
+  const pmi = mortgage.pmi;
+  const cashFlowMonthly = noiMonthly - pi - pmi;
   const cashFlowAnnual = cashFlowMonthly * 12;
 
   const initialCashInvested =
@@ -72,6 +80,7 @@ export function computeRentalAnalysis(
   /** Monthly debt service + operating costs (visual “where money goes” before cash flow). */
   const composition: RentalPieSlice[] = [
     { id: "pi", label: "Principal & interest", amount: pi },
+    ...(pmi > 0.0001 ? [{ id: RENTAL_YIELD_PMI_ID, label: "PMI", amount: pmi }] : []),
     ...operatingExpenseLines.map((l) => ({ id: l.id, label: l.label, amount: l.amount })),
   ].filter((x) => x.amount > 0.0001);
 
@@ -84,6 +93,7 @@ export function computeRentalAnalysis(
     noiAnnual,
     capRate,
     principalAndInterestMonthly: pi,
+    pmiMonthly: pmi,
     cashFlowMonthly,
     cashFlowAnnual,
     initialCashInvested,
@@ -96,9 +106,6 @@ function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, n));
 }
-
-/** P&amp;I row id for `sellRentalYieldInclude` (matches pro-forma). */
-export const RENTAL_YIELD_PI_ID = "pi";
 
 /**
  * Rental cash flow per year (annualized) with optional line exclusions for When to sell gain.
@@ -113,14 +120,19 @@ export function cashFlowMonthlyFromYieldToggles(
 ): number {
   const egi = analysis.effectiveGrossIncomeMonthly;
   const pi = analysis.principalAndInterestMonthly;
+  const pmi = analysis.pmiMonthly;
   let opex = 0;
   for (const line of analysis.operatingExpenseLines) {
     if (include?.[line.id] === false) continue;
     opex += line.amount;
   }
   const userWantsPiInGain = include?.[RENTAL_YIELD_PI_ID] !== false;
+  const userWantsPmiInGain = include?.[RENTAL_YIELD_PMI_ID] !== false;
   const noiMonthly = egi - opex;
-  const cashFlowMonthly = noiMonthly - (userWantsPiInGain && chargePrincipalAndInterest ? pi : 0);
+  const debt =
+    (userWantsPiInGain && chargePrincipalAndInterest ? pi : 0) +
+    (userWantsPmiInGain && chargePrincipalAndInterest ? pmi : 0);
+  const cashFlowMonthly = noiMonthly - debt;
   return cashFlowMonthly;
 }
 

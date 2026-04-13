@@ -1,6 +1,7 @@
 import {
   STORAGE_KEY,
   SYNC_CHANNEL,
+  mergeParsedWithSchemaDefaults,
   parseMortgageState,
   serializeMortgageState,
   type MortgagePersisted,
@@ -8,9 +9,9 @@ import {
 
 function readFromStorage(): MortgagePersisted {
   try {
-    return parseMortgageState(localStorage.getItem(STORAGE_KEY));
+    return mergeParsedWithSchemaDefaults(parseMortgageState(localStorage.getItem(STORAGE_KEY)));
   } catch {
-    return parseMortgageState(null);
+    return mergeParsedWithSchemaDefaults(parseMortgageState(null));
   }
 }
 
@@ -42,14 +43,14 @@ type Listener = (state: MortgagePersisted) => void;
 export function subscribeMortgageStateRemote(listener: Listener): () => void {
   const onStorage = (event: StorageEvent) => {
     if (event.key !== STORAGE_KEY || event.newValue == null) return;
-    listener(parseMortgageState(event.newValue));
+    listener(mergeParsedWithSchemaDefaults(parseMortgageState(event.newValue)));
   };
 
   const onMessage = (event: MessageEvent) => {
     if (event.data?.type !== "state" || typeof event.data.payload !== "string") {
       return;
     }
-    listener(parseMortgageState(event.data.payload));
+    listener(mergeParsedWithSchemaDefaults(parseMortgageState(event.data.payload)));
   };
 
   window.addEventListener("storage", onStorage);

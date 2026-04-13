@@ -20,6 +20,7 @@ import { alpha, useColorScheme, useTheme } from "@mui/material/styles";
 import { useState } from "react";
 import { MortgageTab } from "./tabs/MortgageTab";
 import { RentalTab } from "./tabs/RentalTab";
+import { UpfrontCashTab } from "./tabs/UpfrontCashTab";
 import { WhenToSellTab } from "./tabs/WhenToSellTab";
 import { useMortgageSyncedState } from "./hooks/useMortgageSyncedState";
 import { downloadScenarioExcel } from "./lib/scenarioExcelExport";
@@ -144,14 +145,14 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ py: { xs: 1.25, sm: 1.5 } }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 1, sm: 1.15 } }}>
         <Box
           role="tablist"
           aria-label="Main sections"
           sx={{
             display: "flex",
             p: 0.65,
-            mb: 1.5,
+            mb: 1.1,
             borderRadius: 3,
             gap: 0.65,
             background: (t) =>
@@ -165,14 +166,21 @@ export default function App() {
             border: (t) => `1px solid ${alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.14 : 0.22)}`,
           }}
         >
-          {(["Mortgage", "Rental", "When to sell"] as const).map((label, i) => (
+          {(
+            [
+              { label: "Mortgage", id: "mortgage" },
+              { label: "Upfront", id: "upfront" },
+              { label: "Rental", id: "rental" },
+              { label: "When to sell", id: "sell" },
+            ] as const
+          ).map(({ label, id }, i) => (
             <Button
-              key={label}
+              key={id}
               size="medium"
               fullWidth
               disableElevation
-              id={i === 0 ? "tab-mortgage" : i === 1 ? "tab-rental" : "tab-sell"}
-              aria-controls={i === 0 ? "tabpanel-mortgage" : i === 1 ? "tabpanel-rental" : "tabpanel-sell"}
+              id={`tab-${id}`}
+              aria-controls={`tabpanel-${id}`}
               aria-selected={tab === i}
               role="tab"
               onClick={() => setTab(i)}
@@ -182,7 +190,7 @@ export default function App() {
                 borderRadius: 2.5,
                 textTransform: "none",
                 fontWeight: 700,
-                fontSize: "0.95rem",
+                fontSize: { xs: "0.82rem", sm: "0.95rem" },
                 letterSpacing: "-0.022em",
                 color: (t) =>
                   tab === i
@@ -212,23 +220,16 @@ export default function App() {
           ))}
         </Box>
 
-        <Box
-          role="tabpanel"
-          hidden={tab !== 0}
-          id="tabpanel-mortgage"
-          aria-labelledby="tab-mortgage"
-        >
+        <Box role="tabpanel" hidden={tab !== 0} id="tabpanel-mortgage" aria-labelledby="tab-mortgage">
           <MortgageTab state={state} patch={patch} />
         </Box>
-        <Box
-          role="tabpanel"
-          hidden={tab !== 1}
-          id="tabpanel-rental"
-          aria-labelledby="tab-rental"
-        >
+        <Box role="tabpanel" hidden={tab !== 1} id="tabpanel-upfront" aria-labelledby="tab-upfront">
+          <UpfrontCashTab state={state} patch={patch} />
+        </Box>
+        <Box role="tabpanel" hidden={tab !== 2} id="tabpanel-rental" aria-labelledby="tab-rental">
           <RentalTab state={state} patch={patch} />
         </Box>
-        <Box role="tabpanel" hidden={tab !== 2} id="tabpanel-sell" aria-labelledby="tab-sell">
+        <Box role="tabpanel" hidden={tab !== 3} id="tabpanel-sell" aria-labelledby="tab-sell">
           <WhenToSellTab state={state} patch={patch} />
         </Box>
 

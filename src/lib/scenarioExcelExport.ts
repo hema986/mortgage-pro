@@ -49,6 +49,7 @@ function monthlyBreakdownRows(label: string, a: MonthlyBreakdown, b: MonthlyBrea
     ["propertyTax", a.propertyTax, b.propertyTax, c.propertyTax],
     ["insurance", a.insurance, b.insurance, c.insurance],
     ["hoa", a.hoa, b.hoa, c.hoa],
+    ["pmi", a.pmi, b.pmi, c.pmi],
     ["total", a.total, b.total, c.total],
     ["loanAmount", a.loanAmount, b.loanAmount, c.loanAmount],
   ];
@@ -90,6 +91,7 @@ function rentalCompareSheet(
       r30.principalAndInterestMonthly,
       r15.principalAndInterestMonthly,
     ],
+    ["PMI_mo", scenario.pmiMonthly, r30.pmiMonthly, r15.pmiMonthly],
     [
       "Cash_flow_mo",
       scenario.cashFlowMonthly,

@@ -21,6 +21,14 @@ export type AppPersisted = {
   propertyTaxPercent: number;
   insuranceAnnual: number;
   hoaMonthly: number;
+  /** Private mortgage insurance per month ($0 if none / removed / not modeled). */
+  pmiMonthly: number;
+  /** Optional extra principal paid every month (P&amp;I prepayment; $0 = off). */
+  extraPrincipalMonthly: number;
+  /** Pre-tax annual income for DTI / affordability (0 = leave DTI blank). */
+  annualGrossIncome: number;
+  /** Car, cards, student loans, etc. — not housing (for back-end DTI). */
+  monthlyNonMortgageDebt: number;
   monthlyRent: number;
   otherMonthlyIncome: number;
   vacancyRatePercent: number;
@@ -43,6 +51,11 @@ export type AppPersisted = {
   currentHomeValue: number;
   /** Whole years since purchase — used with present value to imply compound annual appreciation. */
   yearsOwned: number;
+  /**
+   * Optional USD overrides for modeled buyer-cost lines (`estimateHomeBuyingOneTimeCosts` line `id`s).
+   * Omitted keys use the formula amount. Persisted with the scenario.
+   */
+  buyingCostLineOverrides?: Partial<Record<string, number>>;
 };
 
 /** @deprecated Use AppPersisted */
@@ -75,6 +88,28 @@ export function defaultAppStateFromJson(d: ScenarioDefaultsFile): AppPersisted {
 /** Fresh scenario (Reset, corrupt storage). Values come from `scenario-defaults.json`. */
 export const defaultAppState = (): AppPersisted => defaultAppStateFromJson(SCENARIO_DEFAULTS_JSON);
 
+/**
+ * Merge parsed storage with current schema defaults so new fields (e.g. `pmiMonthly`) appear
+ * when older localStorage JSON omitted them.
+ */
+export function mergeParsedWithSchemaDefaults(parsed: AppPersisted): AppPersisted {
+  const merged: AppPersisted = {
+    ...defaultAppState(),
+    ...parsed,
+    v: SCHEMA_VERSION,
+  };
+  const { buyingCostLineOverrides: rawLineOverrides, ...mergedRest } = merged;
+  const buyingCostLineOverrides = parseBuyingCostLineOverrides(rawLineOverrides);
+  return {
+    ...mergedRest,
+    pmiMonthly: Math.max(0, Math.round(Number(merged.pmiMonthly) || 0)),
+    extraPrincipalMonthly: Math.max(0, Math.round(Number(merged.extraPrincipalMonthly) || 0)),
+    annualGrossIncome: Math.max(0, Math.round(Number(merged.annualGrossIncome) || 0)),
+    monthlyNonMortgageDebt: Math.max(0, Math.round(Number(merged.monthlyNonMortgageDebt) || 0)),
+    ...(buyingCostLineOverrides ? { buyingCostLineOverrides } : {}),
+  };
+}
+
 export const defaultMortgageState = defaultAppState;
 
 function num(x: unknown, fallback: number): number {
@@ -91,6 +126,10 @@ type MortgageCore = Pick<
   | "propertyTaxAnnual"
   | "insuranceAnnual"
   | "hoaMonthly"
+  | "pmiMonthly"
+  | "extraPrincipalMonthly"
+  | "annualGrossIncome"
+  | "monthlyNonMortgageDebt"
 >;
 
 function clampPct(p: number): number {
@@ -108,6 +147,10 @@ function parseV1Mortgage(data: Record<string, unknown>): MortgageCore {
     propertyTaxAnnual: num(data.propertyTaxAnnual, base.propertyTaxAnnual),
     insuranceAnnual: num(data.insuranceAnnual, base.insuranceAnnual),
     hoaMonthly: num(data.hoaMonthly, base.hoaMonthly),
+    pmiMonthly: num(data.pmiMonthly, base.pmiMonthly),
+    extraPrincipalMonthly: num(data.extraPrincipalMonthly, base.extraPrincipalMonthly),
+    annualGrossIncome: num(data.annualGrossIncome, base.annualGrossIncome),
+    monthlyNonMortgageDebt: num(data.monthlyNonMortgageDebt, base.monthlyNonMortgageDebt),
   };
 }
 
@@ -167,6 +210,19 @@ type RentalOnly = Pick<
   | "maintenancePercent"
   | "capexPercent"
 >;
+
+function parseBuyingCostLineOverrides(raw: unknown): Partial<Record<string, number>> | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Partial<Record<string, number>> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || k.length === 0) continue;
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) continue;
+    out[k] = Math.max(0, Math.round(n));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 function parseSellRentalYieldInclude(data: Record<string, unknown>): Record<string, boolean> | undefined {
   const raw = data.sellRentalYieldInclude;
@@ -251,15 +307,21 @@ export function parseMortgageState(raw: string | null): AppPersisted {
       currentHomeValue,
       yearsOwned
     );
+    const buyingCostLineOverrides = parseBuyingCostLineOverrides(data.buyingCostLineOverrides);
     return {
       v: SCHEMA_VERSION,
       ...m,
       ...r,
+      pmiMonthly: num(data.pmiMonthly, base.pmiMonthly),
+      extraPrincipalMonthly: num(data.extraPrincipalMonthly, base.extraPrincipalMonthly),
+      annualGrossIncome: num(data.annualGrossIncome, base.annualGrossIncome),
+      monthlyNonMortgageDebt: num(data.monthlyNonMortgageDebt, base.monthlyNonMortgageDebt),
       yearsOwned,
       currentHomeValue,
       sellAnnualAppreciationPercent,
       sellClosingCostPercent: num(data.sellClosingCostPercent, base.sellClosingCostPercent),
       ...(y !== undefined ? { sellRentalYieldInclude: y } : {}),
+      ...(buyingCostLineOverrides ? { buyingCostLineOverrides } : {}),
     };
   } catch {
     return defaultAppState();

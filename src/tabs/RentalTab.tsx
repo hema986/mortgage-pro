@@ -67,6 +67,8 @@ function pctOfEgi(amount: number, egi: number): string {
 /** Pro-forma P&amp;I row id (not in operatingExpenseLines). */
 const PF_PI_ID = "pi";
 
+const PF_PMI_ID = "pmi";
+
 const rentalAccordionSx = {
   border: "1px solid",
   borderColor: "divider",
@@ -178,7 +180,8 @@ export function RentalTab({ state, patch }: RentalTabProps) {
         state.termYears,
         state.propertyTaxAnnual,
         state.insuranceAnnual,
-        state.hoaMonthly
+        state.hoaMonthly,
+        state.pmiMonthly
       ),
     [
       state.downPayment,
@@ -190,6 +193,7 @@ export function RentalTab({ state, patch }: RentalTabProps) {
       state.propertyTaxAnnual,
       state.propertyTaxPercent,
       state.termYears,
+      state.pmiMonthly,
     ]
   );
 
@@ -215,8 +219,12 @@ export function RentalTab({ state, patch }: RentalTabProps) {
   }, []);
 
   const piMonthly = mortgage.principalAndInterest;
-  const monthlyCarrying = totalOpexMo + piMonthly;
-  const piSummaryRight = `${moneyDec.format(piMonthly)}/mo P&I · ${state.termYears}-yr`;
+  const pmiMo = mortgage.pmi;
+  const monthlyCarrying = totalOpexMo + piMonthly + pmiMo;
+  const piSummaryRight =
+    pmiMo > 0.001
+      ? `${moneyDec.format(piMonthly)}/mo P&I · ${moneyDec.format(pmiMo)}/mo PMI · ${state.termYears}-yr`
+      : `${moneyDec.format(piMonthly)}/mo P&I · ${state.termYears}-yr`;
 
   const pfAdj = useMemo(() => {
     const opexIn = r.operatingExpenseLines.reduce(
@@ -227,11 +235,18 @@ export function RentalTab({ state, patch }: RentalTabProps) {
     const piIn = pfLineOn(pfToggles, PF_PI_ID);
     const piAmt = r.principalAndInterestMonthly;
     const piForCf = piIn ? piAmt : 0;
-    const cfAdj = noiAdj - piForCf;
-    const ids = [...r.operatingExpenseLines.map((l) => l.id), PF_PI_ID];
+    const pmiIn = r.pmiMonthly > 0.0001 ? pfLineOn(pfToggles, PF_PMI_ID) : false;
+    const pmiAmt = r.pmiMonthly;
+    const pmiForCf = pmiIn ? pmiAmt : 0;
+    const cfAdj = noiAdj - piForCf - pmiForCf;
+    const ids = [
+      ...r.operatingExpenseLines.map((l) => l.id),
+      PF_PI_ID,
+      ...(r.pmiMonthly > 0.0001 ? [PF_PMI_ID] : []),
+    ];
     const hasExclusion = ids.some((id) => pfToggles[id] === false);
     const opexPartial = r.operatingExpenseLines.some((l) => pfToggles[l.id] === false);
-    return { opexIn, noiAdj, piIn, piAmt, cfAdj, hasExclusion, opexPartial };
+    return { opexIn, noiAdj, piIn, piAmt, pmiIn, pmiAmt, cfAdj, hasExclusion, opexPartial };
   }, [egi, pfToggles, r]);
 
   /**
@@ -387,9 +402,9 @@ export function RentalTab({ state, patch }: RentalTabProps) {
         <AccordionDetails sx={accordionDetailsSx}>
           <Stack spacing={1}>
             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: "block" }}>
-              <strong>Upfront</strong> is money you bring once at closing. <strong>Monthly carrying</strong> (other
-              card) is what it costs each month to own and operate. Price and down also live under{" "}
-              <strong>Financing</strong>.
+              <strong>Upfront</strong> is money you bring once at closing (see the <strong>Upfront</strong> tab for a
+              dedicated ledger). <strong>Monthly carrying</strong> (other card) is what it costs each month to own and
+              operate. Price and down also live under <strong>Financing</strong>.
             </Typography>
 
             <RentalSubsection
@@ -1077,6 +1092,35 @@ export function RentalTab({ state, patch }: RentalTabProps) {
                     {pfAdj.piIn ? pctOfEgi(pfAdj.piAmt, egi) : "—"}
                   </TableCell>
                 </TableRow>
+                {r.pmiMonthly > 0.001 ? (
+                  <TableRow
+                    sx={{
+                      opacity: pfAdj.pmiIn ? 1 : 0.55,
+                      bgcolor: pfAdj.pmiIn ? undefined : "action.hover",
+                    }}
+                  >
+                    <TableCell padding="checkbox" sx={{ py: 0.35, verticalAlign: "middle" }}>
+                      <Checkbox
+                        size="small"
+                        checked={pfAdj.pmiIn}
+                        onChange={() => setPfToggles((prev) => ({ ...prev, [PF_PMI_ID]: !pfLineOn(prev, PF_PMI_ID) }))}
+                        inputProps={{ "aria-label": "Include PMI in pro-forma cash flow" }}
+                      />
+                    </TableCell>
+                    <ProFormaNavCell
+                      onGo={() => goToRentalField("rental-edit-financing", { expandFinancing: true })}
+                      sx={{ pl: 0.5, py: 0.35 }}
+                    >
+                      PMI
+                    </ProFormaNavCell>
+                    <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums", py: 0.35 }}>
+                      −{moneyDec.format(pfAdj.pmiAmt)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums", py: 0.35, color: "text.secondary" }}>
+                      {pfAdj.pmiIn ? pctOfEgi(pfAdj.pmiAmt, egi) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
                 <TableRow>
                   <TableCell padding="checkbox" sx={{ py: 0.35 }} />
                   <ProFormaNavCell onGo={() => goToRentalField("rental-metrics-row")} sx={{ fontWeight: 700, py: 0.35 }}>

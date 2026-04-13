@@ -210,7 +210,8 @@ export function buildRealWealthExitSnapshots(
     30,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
   const m15 = computeMonthlyPayment(
     hp,
@@ -219,7 +220,8 @@ export function buildRealWealthExitSnapshots(
     15,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
   const mUser = computeMonthlyPayment(
     hp,
@@ -228,7 +230,8 @@ export function buildRealWealthExitSnapshots(
     termY,
     state.propertyTaxAnnual,
     state.insuranceAnnual,
-    state.hoaMonthly
+    state.hoaMonthly,
+    state.pmiMonthly
   );
   const r30 = computeRentalAnalysis(state, m30);
   const r15 = computeRentalAnalysis(state, m15);

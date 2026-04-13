@@ -32,6 +32,7 @@ import {
   computeRentalAnalysis,
   cumulativeCashFlowThroughExitMonths,
   RENTAL_YIELD_PI_ID,
+  RENTAL_YIELD_PMI_ID,
 } from "../lib/rentalMath";
 import {
   buildRealWealthExitSnapshots,
@@ -231,7 +232,8 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
         30,
         state.propertyTaxAnnual,
         state.insuranceAnnual,
-        state.hoaMonthly
+        state.hoaMonthly,
+        state.pmiMonthly
       ),
     [
       state.homePrice,
@@ -240,6 +242,7 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
       state.propertyTaxAnnual,
       state.insuranceAnnual,
       state.hoaMonthly,
+      state.pmiMonthly,
     ]
   );
 
@@ -252,7 +255,8 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
         15,
         state.propertyTaxAnnual,
         state.insuranceAnnual,
-        state.hoaMonthly
+        state.hoaMonthly,
+        state.pmiMonthly
       ),
     [
       state.homePrice,
@@ -261,6 +265,7 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
       state.propertyTaxAnnual,
       state.insuranceAnnual,
       state.hoaMonthly,
+      state.pmiMonthly,
     ]
   );
 
@@ -273,7 +278,8 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
         exitHorizonYears,
         state.propertyTaxAnnual,
         state.insuranceAnnual,
-        state.hoaMonthly
+        state.hoaMonthly,
+        state.pmiMonthly
       ),
     [
       state.homePrice,
@@ -283,6 +289,7 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
       state.propertyTaxAnnual,
       state.insuranceAnnual,
       state.hoaMonthly,
+      state.pmiMonthly,
     ]
   );
 
@@ -892,6 +899,27 @@ export function WhenToSellTab({ state, patch }: WhenToSellTabProps) {
                           </Typography>
                         }
                       />
+                      {rental30Path.pmiMonthly > 0.001 ? (
+                        <YieldGainToggleRow
+                          checked={yieldIncluded(RENTAL_YIELD_PMI_ID)}
+                          onToggle={() => setYieldIncluded(RENTAL_YIELD_PMI_ID, !yieldIncluded(RENTAL_YIELD_PMI_ID))}
+                          title="PMI"
+                          detail={
+                            <Typography
+                              component="div"
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{
+                                fontSize: { xs: "0.8125rem", sm: "0.875rem" },
+                                fontVariantNumeric: "tabular-nums",
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              {money.format(rental30Path.pmiMonthly)}/mo
+                            </Typography>
+                          }
+                        />
+                      ) : null}
                       {rental30Path.operatingExpenseLines.map((line) => (
                         <YieldGainToggleRow
                           key={line.id}
