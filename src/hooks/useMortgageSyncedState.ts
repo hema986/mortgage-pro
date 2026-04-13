@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { impliedAnnualAppreciationPercent } from "../lib/mortgageMath";
 import {
   defaultMortgageState,
   SCHEMA_VERSION,
@@ -32,7 +33,15 @@ export function useMortgageSyncedState() {
   }, [state]);
 
   const patch = useCallback((partial: Partial<AppPersisted>) => {
-    setState((prev) => ({ ...prev, ...partial, v: SCHEMA_VERSION }));
+    setState((prev) => {
+      const next = { ...prev, ...partial, v: SCHEMA_VERSION };
+      const apr = impliedAnnualAppreciationPercent(
+        next.homePrice,
+        next.currentHomeValue,
+        next.yearsOwned
+      );
+      return { ...next, sellAnnualAppreciationPercent: apr };
+    });
   }, []);
 
   const reset = useCallback(() => {
@@ -43,10 +52,33 @@ export function useMortgageSyncedState() {
   }, []);
 
   const replace = useCallback((next: AppPersisted) => {
-    lastSerialized.current = serializeMortgageState(next);
-    savePersistedMortgageState(next);
-    setState(next);
+    const yearsOwned = Math.max(1, Math.round(next.yearsOwned ?? 1));
+    const currentHomeValue =
+      next.currentHomeValue !== undefined && Number.isFinite(next.currentHomeValue)
+        ? Math.max(0, next.currentHomeValue)
+        : next.homePrice * (1 + (next.sellAnnualAppreciationPercent ?? 0) / 100) ** yearsOwned;
+    const synced: AppPersisted = {
+      ...next,
+      yearsOwned,
+      currentHomeValue,
+      v: SCHEMA_VERSION,
+      sellAnnualAppreciationPercent: impliedAnnualAppreciationPercent(
+        next.homePrice,
+        currentHomeValue,
+        yearsOwned
+      ),
+    };
+    lastSerialized.current = serializeMortgageState(synced);
+    savePersistedMortgageState(synced);
+    setState(synced);
   }, []);
 
-  return { state, patch, reset, replace };
+  /** Writes current scenario JSON to localStorage (same as auto-save; use for explicit “Save”). */
+  const saveToBrowser = useCallback(() => {
+    const serialized = serializeMortgageState(state);
+    lastSerialized.current = serialized;
+    savePersistedMortgageState(state);
+  }, [state]);
+
+  return { state, patch, reset, replace, saveToBrowser };
 }

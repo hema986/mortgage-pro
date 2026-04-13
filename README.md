@@ -1,6 +1,6 @@
 # Property Pro
 
-A **single-page web app** for modeling **mortgages**, **rental cash flow**, and **when-to-sell** scenarios. Built with **React**, **TypeScript**, **Vite**, and **Material UI** (Material Design). State stays in the browser (local storage) and can be exported or imported as JSON.
+A **single-page web app** for modeling **mortgages**, **rental cash flow**, and **when-to-sell** scenarios. Built with **React**, **TypeScript**, **Vite**, and **Material UI** (Material Design). State stays in the browser (local storage); you can **Export Excel** for an offline workbook.
 
 ## Features
 
@@ -8,7 +8,7 @@ A **single-page web app** for modeling **mortgages**, **rental cash flow**, and 
 - **Rental** — Rental income and expense modeling (including composition breakdown).
 - **When to sell** — Scenario math to compare holding vs. selling.
 - **Persistence** — Scenarios are saved automatically in `localStorage`.
-- **Import / export** — Download or upload a `property-pro.json` file from the toolbar.
+- **Export Excel** — Download a multi-sheet workbook (inputs, formulas, projections) from the toolbar.
 - **Theme** — Light and dark mode.
 
 ## Requirements
@@ -88,7 +88,7 @@ The workflow sets `VITE_BASE_PATH` to `/<repository-name>/` so JS/CSS paths work
 
 ```
 src/
-  App.tsx              # Shell, tabs, import/export, theme toggle
+  App.tsx              # Shell, tabs, save/export Excel, theme toggle
   tabs/                # Mortgage, rental, when-to-sell screens
   components/          # Shared UI (charts, inputs, tables)
   lib/                 # Pure math helpers

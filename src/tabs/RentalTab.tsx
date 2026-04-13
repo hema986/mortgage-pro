@@ -83,19 +83,27 @@ const rentalAccordionSx = {
 
 const accordionSummarySx = {
   px: 2,
-  py: 1.5,
-  minHeight: 56,
+  py: 0.75,
+  minHeight: "unset",
+  alignItems: "flex-start",
   "&:hover": { bgcolor: "action.hover" },
   "& .MuiAccordionSummary-content": {
     alignItems: "flex-start",
     flexDirection: "column",
-    gap: 1,
+    gap: 0.5,
     minWidth: 0,
+    width: "100%",
+    maxWidth: "100%",
     my: 0,
+    overflow: "visible",
+  },
+  "& .MuiAccordionSummary-expandIconWrapper": {
+    alignSelf: "flex-start",
+    mt: 0.25,
   },
 } as const;
 
-const accordionDetailsSx = { px: 2, pt: 1.5, pb: 2 } as const;
+const accordionDetailsSx = { px: 1.5, pt: 0.75, pb: 1 } as const;
 
 /** Pro-forma OpEx line id → scroll target (tax / ins / HOA share one block). */
 const OPEX_SCROLL_ANCHOR: Record<string, string> = {
@@ -226,6 +234,16 @@ export function RentalTab({ state, patch }: RentalTabProps) {
     return { opexIn, noiAdj, piIn, piAmt, cfAdj, hasExclusion, opexPartial };
   }, [egi, pfToggles, r]);
 
+  /**
+   * If you've held longer than the loan term: same convention as When to sell gain after payoff — EGI/mo
+   * (no OpEx, no P&amp;I), not pro-forma NOI.
+   */
+  const yearsOwnedRounded = Math.max(0, Math.round(state.yearsOwned));
+  const termYearsRounded = Math.max(1, Math.round(state.termYears));
+  const loanPaidOffByYearsHeld = yearsOwnedRounded > termYearsRounded;
+  const mortgageFreeMonthly = r.effectiveGrossIncomeMonthly;
+  const mortgageFreeAnnual = mortgageFreeMonthly * 12;
+
   return (
     <Stack spacing={2}>
       <Paper
@@ -270,12 +288,28 @@ export function RentalTab({ state, patch }: RentalTabProps) {
           <Typography variant="subtitle2" sx={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Financing &amp; property
           </Typography>
+          <Typography
+            component="div"
+            variant="caption"
+            color="text.secondary"
+            sx={{
+              display: { xs: "block", sm: "none" },
+              lineHeight: 1.4,
+              fontSize: "0.72rem",
+              fontVariantNumeric: "tabular-nums",
+            }}
+            title={`Price ${money.format(state.homePrice)} · Loan ${money.format(mortgage.loanAmount)} · ${state.interestRateApr}% APR · ${state.termYears} yr · P&I ${moneyDec.format(mortgage.principalAndInterest)}/mo · PITI+HOA ${moneyDec.format(mortgage.total)}/mo`}
+          >
+            {money.format(state.homePrice)} · {state.downPaymentPercent.toFixed(1)}% down · ln{" "}
+            {money.format(mortgage.loanAmount)} · {state.interestRateApr}% · {state.termYears}y · P&amp;I{" "}
+            {moneyDec.format(mortgage.principalAndInterest)} · PITI {moneyDec.format(mortgage.total)}
+          </Typography>
           <Box
             sx={{
-              display: "grid",
+              display: { xs: "none", sm: "grid" },
               width: "100%",
               gap: 1,
-              gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" },
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
             }}
           >
             <RentalSummaryStat label="Price" value={money.format(state.homePrice)} />
@@ -283,8 +317,12 @@ export function RentalTab({ state, patch }: RentalTabProps) {
             <RentalSummaryStat label={"P&I / mo"} value={moneyDec.format(mortgage.principalAndInterest)} />
             <RentalSummaryStat label="PITI+HOA / mo" value={moneyDec.format(mortgage.total)} />
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>
-            {state.interestRateApr}% APR · {state.termYears} yr — visible when collapsed
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ lineHeight: 1.35, display: { xs: "none", sm: "block" } }}
+          >
+            {state.interestRateApr}% APR · {state.termYears} yr (collapsed summary above)
           </Typography>
         </AccordionSummary>
         <AccordionDetails sx={accordionDetailsSx}>
@@ -308,16 +346,28 @@ export function RentalTab({ state, patch }: RentalTabProps) {
           <Typography variant="subtitle2" sx={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Upfront cash (acquisition)
           </Typography>
+          <Typography
+            component="div"
+            variant="caption"
+            color="text.secondary"
+            sx={{
+              display: { xs: "block", md: "none" },
+              lineHeight: 1.4,
+              fontSize: "0.72rem",
+              fontVariantNumeric: "tabular-nums",
+            }}
+            title={`Total cash in ${moneyDec.format(totalCashIn)} · Down ${money.format(state.downPayment)} · Closing ${money.format(state.closingCosts)} · Misc ${money.format(state.miscInitialCash)} · Financed ${money.format(Math.max(0, state.homePrice - state.downPayment))}`}
+          >
+            Tot {moneyDec.format(totalCashIn)} · D {money.format(state.downPayment)} · Close{" "}
+            {money.format(state.closingCosts)} · Misc {money.format(state.miscInitialCash)} · Ln{" "}
+            {money.format(Math.max(0, state.homePrice - state.downPayment))}
+          </Typography>
           <Box
             sx={{
-              display: "grid",
+              display: { xs: "none", md: "grid" },
               width: "100%",
               gap: 1,
-              gridTemplateColumns: {
-                xs: "repeat(2, minmax(0, 1fr))",
-                sm: "repeat(3, minmax(0, 1fr))",
-                md: "repeat(5, minmax(0, 1fr))",
-              },
+              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
             }}
           >
             <RentalSummaryStat label="Total cash in" value={moneyDec.format(totalCashIn)} emphasize />
@@ -326,12 +376,16 @@ export function RentalTab({ state, patch }: RentalTabProps) {
             <RentalSummaryStat label="Misc one-time" value={money.format(state.miscInitialCash)} />
             <RentalSummaryStat label="Financed" value={money.format(Math.max(0, state.homePrice - state.downPayment))} />
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.35 }}>
-            One-time at close — visible when collapsed
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ lineHeight: 1.35, display: { xs: "none", md: "block" } }}
+          >
+            One-time at close (collapsed summary above)
           </Typography>
         </AccordionSummary>
         <AccordionDetails sx={accordionDetailsSx}>
-          <Stack spacing={1.5}>
+          <Stack spacing={1}>
             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: "block" }}>
               <strong>Upfront</strong> is money you bring once at closing. <strong>Monthly carrying</strong> (other
               card) is what it costs each month to own and operate. Price and down also live under{" "}
@@ -534,6 +588,15 @@ export function RentalTab({ state, patch }: RentalTabProps) {
             hint={`NOI ${moneyDec.format(r.noiMonthly)} − P&amp;I ${moneyDec.format(piMonthly)} (same ${state.termYears}-yr loan as Mortgage)`}
             positive={r.cashFlowMonthly >= 0}
             title={`Mo cash flow = monthly NOI minus monthly P&I. P&I is ${moneyDec.format(piMonthly)} on a ${state.termYears}-year amortizing loan — identical to the Mortgage tab for this scenario.`}
+            note={
+              loanPaidOffByYearsHeld ? (
+                <>
+                  <strong>Approx. mortgage-free</strong> (years held &gt; {termYearsRounded} yr loan):{" "}
+                  {moneyDec.format(mortgageFreeMonthly)}/mo — effective gross income (vacancy applied), no OpEx or P&amp;I{" "}
+                  (matches When to sell rent after loan payoff). Uses <strong>Years since purchase</strong> on When to sell.
+                </>
+              ) : undefined
+            }
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -545,6 +608,14 @@ export function RentalTab({ state, patch }: RentalTabProps) {
             hint={`12 × mo cash flow; P&amp;I still ${moneyDec.format(piMonthly)}/mo (${state.termYears} yr)`}
             positive={r.cashFlowAnnual >= 0}
             title={`Year cash flow is twelve times monthly cash flow (NOI − P&I). Loan term is ${state.termYears} years on both tabs.`}
+            note={
+              loanPaidOffByYearsHeld ? (
+                <>
+                  <strong>Approx. mortgage-free</strong>: {moneyDec.format(mortgageFreeAnnual)}/yr ({moneyDec.format(mortgageFreeMonthly)}
+                  /mo EGI). Main figures above still assume debt service for side-by-side underwriting.
+                </>
+              ) : undefined
+            }
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
@@ -575,7 +646,7 @@ export function RentalTab({ state, patch }: RentalTabProps) {
         </Grid>
       </Grid>
 
-      <Grid container spacing={1.5}>
+      <Grid container spacing={1}>
         <Grid size={{ xs: 12, md: 6 }}>
           <RentalPanelCard
             panelId="rental-edit-income"
@@ -584,22 +655,24 @@ export function RentalTab({ state, patch }: RentalTabProps) {
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.45, display: "block" }}>
                 GSI {moneyDec.format(r.grossScheduledIncomeMonthly)} · vac −{moneyDec.format(r.vacancyLossMonthly)} →
                 EGI {moneyDec.format(egi)}. Price &amp; down live in <strong>Upfront cash</strong> or{" "}
-                <strong>Financing</strong>.
+                <strong>Financing</strong>. Metrics and the pro-forma below allow <strong>negative cash flow</strong> when
+                income is below carrying costs.
               </Typography>
             }
           >
-            <Stack spacing={1.5}>
+            <Stack spacing={1}>
                 <RentalFieldRow
                   anchorId="rental-edit-rent"
                   label="Rent"
-                  detail="500–12k/mo"
+                  detail="Any amount ≥ 0 · edit freely, saves when you leave the field"
                   valueLabel={money.format(state.monthlyRent)}
                   textLabel="$/mo"
                   textValue={formatNumberField(state.monthlyRent)}
-                  onText={(raw) => {
-                    const n = Number(raw.replace(/[^0-9.]/g, ""));
-                    if (!Number.isFinite(n)) return;
-                    patch({ monthlyRent: Math.min(12_000, Math.max(500, Math.round(n))) });
+                  numericCommitOnBlur={{
+                    min: 0,
+                    max: 999_999,
+                    committed: state.monthlyRent,
+                    onCommit: (n) => patch({ monthlyRent: n }),
                   }}
                   startAdornment={<InputAdornment position="start">$</InputAdornment>}
                 />
@@ -620,14 +693,14 @@ export function RentalTab({ state, patch }: RentalTabProps) {
                 <RentalFieldRow
                   anchorId="rental-edit-vacancy"
                   label="Vacancy"
-                  detail="0–25%"
+                  detail="0–100% · high vacancy stresses cash flow"
                   valueLabel={`${state.vacancyRatePercent.toFixed(1)}%`}
                   textLabel="%"
                   textValue={formatPercentField(state.vacancyRatePercent)}
                   onText={(raw) => {
                     const n = Number(raw.replace(/[^0-9.]/g, ""));
                     if (!Number.isFinite(n)) return;
-                    patch({ vacancyRatePercent: Math.min(25, Math.max(0, n)) });
+                    patch({ vacancyRatePercent: Math.min(100, Math.max(0, n)) });
                   }}
                   endAdornment={<InputAdornment position="end">%</InputAdornment>}
                 />
@@ -659,7 +732,7 @@ export function RentalTab({ state, patch }: RentalTabProps) {
               </Stack>
             }
           >
-            <Stack spacing={1.5}>
+            <Stack spacing={1}>
                 <RentalSubsection
                   sectionId="rental-edit-debt-service"
                   title="Debt service"
@@ -772,42 +845,42 @@ export function RentalTab({ state, patch }: RentalTabProps) {
                   <RentalFieldRow
                     anchorId="rental-edit-mgmt"
                     label="Mgmt"
-                    detail="% of scheduled income"
+                    detail="% of scheduled income (0–50%)"
                     valueLabel={`${state.propertyMgmtPercent.toFixed(1)}%`}
                     textLabel="%"
                     textValue={formatPercentField(state.propertyMgmtPercent)}
                     onText={(raw) => {
                       const n = Number(raw.replace(/[^0-9.]/g, ""));
                       if (!Number.isFinite(n)) return;
-                      patch({ propertyMgmtPercent: Math.min(20, Math.max(0, n)) });
+                      patch({ propertyMgmtPercent: Math.min(50, Math.max(0, n)) });
                     }}
                     endAdornment={<InputAdornment position="end">%</InputAdornment>}
                   />
                   <RentalFieldRow
                     anchorId="rental-edit-maint"
                     label="Maint."
-                    detail="% of base rent"
+                    detail="% of base rent (0–50%)"
                     valueLabel={`${state.maintenancePercent.toFixed(1)}%`}
                     textLabel="%"
                     textValue={formatPercentField(state.maintenancePercent)}
                     onText={(raw) => {
                       const n = Number(raw.replace(/[^0-9.]/g, ""));
                       if (!Number.isFinite(n)) return;
-                      patch({ maintenancePercent: Math.min(25, Math.max(0, n)) });
+                      patch({ maintenancePercent: Math.min(50, Math.max(0, n)) });
                     }}
                     endAdornment={<InputAdornment position="end">%</InputAdornment>}
                   />
                   <RentalFieldRow
                     anchorId="rental-edit-capex"
                     label="CapEx"
-                    detail="% of base rent"
+                    detail="% of base rent (0–30%)"
                     valueLabel={`${state.capexPercent.toFixed(1)}%`}
                     textLabel="%"
                     textValue={formatPercentField(state.capexPercent)}
                     onText={(raw) => {
                       const n = Number(raw.replace(/[^0-9.]/g, ""));
                       if (!Number.isFinite(n)) return;
-                      patch({ capexPercent: Math.min(15, Math.max(0, n)) });
+                      patch({ capexPercent: Math.min(30, Math.max(0, n)) });
                     }}
                     endAdornment={<InputAdornment position="end">%</InputAdornment>}
                   />
@@ -1135,7 +1208,7 @@ function RentalSubsection(props: { sectionId?: string; title: string; subtitle?:
           {props.subtitle}
         </Typography>
       ) : null}
-      <Stack spacing={1.25} sx={{ mt: 1 }}>
+      <Stack spacing={0.75} sx={{ mt: 0.75 }}>
         {props.children}
       </Stack>
     </Box>
@@ -1149,10 +1222,22 @@ function RentalFieldRow(props: {
   valueLabel: string;
   textLabel: string;
   textValue: string;
-  onText: (raw: string) => void;
+  onText?: (raw: string) => void;
+  /** Digits-only while typing; clamp to [min, max] on blur (empty blur = keep saved value). */
+  numericCommitOnBlur?: { min: number; max: number; committed: number; onCommit: (n: number) => void };
   startAdornment?: ReactNode;
   endAdornment?: ReactNode;
 }) {
+  const [numericDraft, setNumericDraft] = useState<string | null>(null);
+  const commit = props.numericCommitOnBlur;
+
+  const inputValue =
+    commit != null
+      ? numericDraft !== null
+        ? numericDraft
+        : formatNumberField(commit.committed)
+      : props.textValue;
+
   return (
     <Grid id={props.anchorId} container spacing={1} alignItems="flex-end">
       <Grid size={{ xs: 12, md: 7 }}>
@@ -1179,8 +1264,26 @@ function RentalFieldRow(props: {
           label={props.textLabel}
           size="small"
           fullWidth
-          value={props.textValue}
-          onChange={(e) => props.onText(e.target.value)}
+          value={inputValue}
+          onChange={(e) => {
+            if (commit != null) {
+              setNumericDraft(e.target.value.replace(/[^0-9]/g, ""));
+            } else {
+              props.onText?.(e.target.value);
+            }
+          }}
+          onFocus={() => {
+            if (commit != null) setNumericDraft(formatNumberField(commit.committed));
+          }}
+          onBlur={(e) => {
+            if (commit == null) return;
+            const digits = e.target.value.replace(/[^0-9]/g, "");
+            setNumericDraft(null);
+            if (digits === "") return;
+            const n = Math.round(Number(digits));
+            if (!Number.isFinite(n)) return;
+            commit.onCommit(Math.min(commit.max, Math.max(commit.min, n)));
+          }}
           slotProps={{
             input: {
               ...(props.startAdornment ? { startAdornment: props.startAdornment } : {}),
@@ -1203,6 +1306,8 @@ function MetricCard(props: {
   positive?: boolean;
   /** Native tooltip for extra context (e.g. what the detail dollars mean). */
   title?: string;
+  /** Optional callout below hint (e.g. post-payoff cash flow). */
+  note?: ReactNode;
 }) {
   const hasRight = Boolean(props.detail || props.detailExtra);
   return (
@@ -1275,6 +1380,20 @@ function MetricCard(props: {
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem", lineHeight: 1.25, display: "block", mt: 0.25 }}>
           {props.hint}
         </Typography>
+        {props.note ? (
+          <Typography
+            variant="caption"
+            sx={{
+              display: "block",
+              mt: 0.45,
+              fontSize: "0.65rem",
+              lineHeight: 1.35,
+              color: "success.main",
+            }}
+          >
+            {props.note}
+          </Typography>
+        ) : null}
       </CardContent>
     </Card>
   );

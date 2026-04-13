@@ -8,6 +8,8 @@ export type MortgageInputsFieldsProps = {
   patch: (partial: Partial<AppPersisted>) => void;
   /** Helper under purchase price (e.g. cap rate note on Mortgage tab). */
   purchasePriceHelperText?: string;
+  /** Defaults to medium (Mortgage / Rental). */
+  inputSize?: "small" | "medium";
 };
 
 function formatNumberField(value: number): string {
@@ -25,12 +27,14 @@ export function MortgageInputsFields({
   state,
   patch,
   purchasePriceHelperText = "Used as property value for rental cap rate",
+  inputSize = "medium",
 }: MortgageInputsFieldsProps) {
   return (
-    <Grid container spacing={1.5}>
+    <Grid container spacing={1}>
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Purchase price"
+          size={inputSize}
           fullWidth
           helperText={purchasePriceHelperText}
           value={formatNumberField(state.homePrice)}
@@ -56,6 +60,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Down payment (amount)"
+          size={inputSize}
           fullWidth
           helperText="Updates % of purchase price"
           value={formatNumberField(state.downPayment)}
@@ -80,6 +85,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Down payment (%)"
+          size={inputSize}
           fullWidth
           helperText="Keeps same % when you change purchase price"
           value={formatPercentField(state.downPaymentPercent)}
@@ -103,6 +109,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Interest rate (APR)"
+          size={inputSize}
           fullWidth
           value={formatNumberField(state.interestRateApr)}
           onChange={(e) => {
@@ -119,6 +126,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Loan term"
+          size={inputSize}
           fullWidth
           select
           SelectProps={{ native: true }}
@@ -135,6 +143,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Property tax (annual)"
+          size={inputSize}
           fullWidth
           helperText="Dollar amount per year"
           value={formatNumberField(state.propertyTaxAnnual)}
@@ -158,6 +167,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Property tax (%)"
+          size={inputSize}
           fullWidth
           helperText="Annual tax as % of purchase price"
           value={formatPercentField(state.propertyTaxPercent)}
@@ -181,6 +191,7 @@ export function MortgageInputsFields({
       <Grid size={{ xs: 12, sm: 6 }}>
         <TextField
           label="Home insurance (annual)"
+          size={inputSize}
           fullWidth
           value={formatNumberField(state.insuranceAnnual)}
           onChange={(e) => {
@@ -197,6 +208,7 @@ export function MortgageInputsFields({
       <Grid size={12}>
         <TextField
           label="HOA (monthly)"
+          size={inputSize}
           fullWidth
           value={formatNumberField(state.hoaMonthly)}
           onChange={(e) => {

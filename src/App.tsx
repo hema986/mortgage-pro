@@ -2,7 +2,7 @@ import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import Alert from "@mui/material/Alert";
 import {
   AppBar,
@@ -11,23 +11,23 @@ import {
   Container,
   IconButton,
   Snackbar,
+  Stack,
   Toolbar,
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useColorScheme, useTheme } from "@mui/material/styles";
-import { useRef, useState } from "react";
+import { alpha, useColorScheme, useTheme } from "@mui/material/styles";
+import { useState } from "react";
 import { MortgageTab } from "./tabs/MortgageTab";
 import { RentalTab } from "./tabs/RentalTab";
 import { WhenToSellTab } from "./tabs/WhenToSellTab";
 import { useMortgageSyncedState } from "./hooks/useMortgageSyncedState";
-import { tryParseMortgageJson } from "./storage/mortgageState";
+import { downloadScenarioExcel } from "./lib/scenarioExcelExport";
 
 export default function App() {
   const { setMode } = useColorScheme();
   const theme = useTheme();
-  const { state, patch, reset, replace } = useMortgageSyncedState();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { state, patch, reset, saveToBrowser } = useMortgageSyncedState();
   const [tab, setTab] = useState(0);
   const [toast, setToast] = useState<{ message: string; severity: "success" | "error" } | null>(
     null
@@ -35,93 +35,98 @@ export default function App() {
 
   const isDark = theme.palette.mode === "dark";
 
-  function exportJson() {
-    const payload = {
-      ...state,
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
+  function exportExcel() {
+    downloadScenarioExcel(state);
+    setToast({
+      message: "Exported property-pro-scenario.xlsx (inputs, formulas, and calculated tables).",
+      severity: "success",
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "property-pro.json";
-    a.click();
-    URL.revokeObjectURL(url);
-    setToast({ message: "Saved property-pro.json", severity: "success" });
   }
 
-  async function onImportFile(file: File) {
-    try {
-      const text = await file.text();
-      const next = tryParseMortgageJson(text);
-      if (!next) {
-        setToast({
-          message: "Could not read file. Expected JSON with v: 1 or v: 2.",
-          severity: "error",
-        });
-        return;
-      }
-      replace(next);
-      setToast({ message: "Scenario imported.", severity: "success" });
-    } catch {
-      setToast({ message: "Failed to read file.", severity: "error" });
-    }
+  function saveToLocalStorage() {
+    saveToBrowser();
+    setToast({ message: "Saved to this browser (localStorage).", severity: "success" });
   }
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }}>
+    <Box sx={{ minHeight: "100dvh", bgcolor: "transparent" }}>
       <AppBar
         position="sticky"
         color="transparent"
         elevation={0}
         sx={{
-          borderBottom: "0.5px solid",
-          borderColor: "divider",
-          backdropFilter: "blur(20px) saturate(180%)",
-          WebkitBackdropFilter: "blur(20px) saturate(180%)",
-          bgcolor: isDark ? "rgba(28, 28, 30, 0.72)" : "rgba(242, 242, 247, 0.72)",
+          borderBottom: "1px solid",
+          borderColor: (t) => alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.12 : 0.2),
+          backdropFilter: "blur(24px) saturate(180%)",
+          WebkitBackdropFilter: "blur(24px) saturate(180%)",
+          bgcolor: (t) =>
+            t.palette.mode === "light"
+              ? alpha("#E8F2FF", 0.82)
+              : alpha("#0D1520", 0.78),
         }}
       >
-        <Toolbar sx={{ py: 0.25, gap: 0.5 }}>
+        <Toolbar sx={{ py: 0.35, gap: 0.75, flexWrap: "wrap" }}>
           <Typography
             component="div"
             sx={{
               flexGrow: 1,
-              fontSize: { xs: "1.25rem", sm: "1.375rem" },
-              fontWeight: 600,
-              letterSpacing: "-0.03em",
-              lineHeight: 1.2,
+              fontSize: { xs: "1.28rem", sm: "1.42rem" },
+              fontWeight: 700,
+              letterSpacing: "-0.035em",
+              lineHeight: 1.15,
+              background: isDark
+                ? "linear-gradient(120deg, #93C5FD 0%, #5EEAD4 55%, #7DD3FC 100%)"
+                : "linear-gradient(120deg, #0052CC 0%, #006AFF 40%, #00A67E 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
             }}
           >
             Property Pro
           </Typography>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) void onImportFile(file);
-            }}
-          />
-          <Tooltip title="Export JSON">
-            <IconButton onClick={exportJson} aria-label="export json" sx={{ color: "text.secondary" }}>
-              <FileDownloadOutlinedIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Import JSON">
-            <IconButton
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="import json"
-              sx={{ color: "text.secondary" }}
-            >
-              <UploadFileOutlinedIcon />
-            </IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0, flexWrap: "wrap" }}>
+            <Tooltip title="Write the current scenario to this browser (localStorage). Factory defaults for new visitors live in src/defaults/scenario-defaults.json; Reset reloads those defaults.">
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<SaveOutlinedIcon />}
+                onClick={saveToLocalStorage}
+                aria-label="Save scenario to local storage"
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                  px: { xs: 1.1, sm: 1.6 },
+                }}
+              >
+                Save
+              </Button>
+            </Tooltip>
+            <Tooltip title="Download Excel workbook: scenario inputs, metric definitions, and calculated tables (multi-sheet).">
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                startIcon={<FileDownloadOutlinedIcon />}
+                onClick={exportExcel}
+                aria-label="Export scenario to Excel"
+                sx={{
+                  textTransform: "none",
+                  fontWeight: 700,
+                  px: { xs: 1, sm: 1.5 },
+                  borderWidth: 2,
+                  "&:hover": { borderWidth: 2 },
+                }}
+              >
+                <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                  Export Excel
+                </Box>
+                <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                  Excel
+                </Box>
+              </Button>
+            </Tooltip>
+          </Stack>
           <Tooltip title="Reset to defaults">
             <IconButton onClick={reset} aria-label="reset" sx={{ color: "text.secondary" }}>
               <RestartAltIcon />
@@ -139,20 +144,25 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ py: { xs: 1.5, sm: 2 } }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 1.25, sm: 1.5 } }}>
         <Box
           role="tablist"
           aria-label="Main sections"
           sx={{
             display: "flex",
-            p: 0.5,
-            mb: 2,
-            borderRadius: 2.5,
-            bgcolor: (t) =>
-              t.palette.mode === "dark"
-                ? "rgba(118, 118, 128, 0.24)"
-                : "rgba(118, 118, 128, 0.12)",
-            gap: 0.5,
+            p: 0.65,
+            mb: 1.5,
+            borderRadius: 3,
+            gap: 0.65,
+            background: (t) =>
+              t.palette.mode === "light"
+                ? `linear-gradient(145deg, ${alpha(t.palette.primary.main, 0.09)}, ${alpha(t.palette.secondary.main, 0.06)})`
+                : `linear-gradient(145deg, ${alpha(t.palette.primary.main, 0.16)}, ${alpha(t.palette.secondary.main, 0.08)})`,
+            boxShadow: (t) =>
+              t.palette.mode === "light"
+                ? `0 1px 2px ${alpha(t.palette.primary.dark, 0.06)}, inset 0 1px 0 ${alpha("#fff", 0.65)}`
+                : `inset 0 1px 0 ${alpha("#fff", 0.06)}`,
+            border: (t) => `1px solid ${alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.14 : 0.22)}`,
           }}
         >
           {(["Mortgage", "Rental", "When to sell"] as const).map((label, i) => (
@@ -167,24 +177,33 @@ export default function App() {
               role="tab"
               onClick={() => setTab(i)}
               sx={{
-                py: 0.75,
-                minHeight: 38,
-                borderRadius: 2,
+                py: 0.85,
+                minHeight: 42,
+                borderRadius: 2.5,
                 textTransform: "none",
-                fontWeight: 600,
-                fontSize: "0.9375rem",
-                letterSpacing: "-0.02em",
-                color: tab === i ? "text.primary" : "text.secondary",
-                bgcolor: tab === i ? "background.paper" : "transparent",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                letterSpacing: "-0.022em",
+                color: (t) =>
+                  tab === i
+                    ? "#FFFFFF"
+                    : t.palette.mode === "light"
+                      ? t.palette.primary.dark
+                      : t.palette.primary.light,
+                background: (t) =>
+                  tab === i
+                    ? `linear-gradient(145deg, ${t.palette.primary.main} 0%, ${alpha(t.palette.secondary.main, 0.92)} 100%)`
+                    : alpha(t.palette.background.paper, t.palette.mode === "light" ? 0.55 : 0.12),
                 boxShadow:
                   tab === i
                     ? (th) =>
-                        th.palette.mode === "light"
-                          ? "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)"
-                          : "0 1px 0 rgba(255,255,255,0.08) inset, 0 0 0 1px rgba(255,255,255,0.06)"
+                        `0 2px 10px ${alpha(th.palette.primary.main, 0.35)}, 0 0 0 1px ${alpha(th.palette.primary.light, 0.35)}`
                     : "none",
                 "&:hover": {
-                  bgcolor: tab === i ? "background.paper" : "action.hover",
+                  background: (t) =>
+                    tab === i
+                      ? `linear-gradient(145deg, ${alpha(t.palette.primary.main, 0.95)} 0%, ${alpha(t.palette.secondary.main, 0.88)} 100%)`
+                      : alpha(t.palette.primary.main, t.palette.mode === "light" ? 0.1 : 0.16),
                 },
               }}
             >
@@ -210,15 +229,12 @@ export default function App() {
           <RentalTab state={state} patch={patch} />
         </Box>
         <Box role="tabpanel" hidden={tab !== 2} id="tabpanel-sell" aria-labelledby="tab-sell">
-          <WhenToSellTab
-            state={state}
-            onSyncAck={() => setToast({ message: "Exit horizon aligned to your loan term (Mortgage tab).", severity: "success" })}
-          />
+          <WhenToSellTab state={state} patch={patch} />
         </Box>
 
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ pt: 2, pb: 1 }}>
-          Estimates only. Mortgage, Rental, and When to sell share the same saved scenario (price, down, APR, loan).
-          Sell analysis uses live values from Mortgage. Saved in this browser (localStorage). Export JSON to back up.
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.45, pt: 1.25, pb: 0.5 }}>
+          Estimates only. One scenario across tabs; edits auto-save to localStorage. Use <strong>Save</strong> in the header
+          to force a write. <strong>Export Excel</strong> downloads a multi-sheet workbook (inputs, formulas, projections).
         </Typography>
       </Container>
 

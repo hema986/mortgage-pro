@@ -96,3 +96,69 @@ function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, n));
 }
+
+/** P&amp;I row id for `sellRentalYieldInclude` (matches pro-forma). */
+export const RENTAL_YIELD_PI_ID = "pi";
+
+/**
+ * Rental cash flow per year (annualized) with optional line exclusions for When to sell gain.
+ * `include[id] === false` omits that operating expense or, for {@link RENTAL_YIELD_PI_ID}, P&amp;I.
+ * Missing keys mean include (same as Rental tab pro-forma “on”).
+ */
+/** Monthly cash flow for gain math with optional P&amp;I and per-line OpEx toggles. */
+export function cashFlowMonthlyFromYieldToggles(
+  analysis: RentalAnalysis,
+  include: Record<string, boolean> | undefined,
+  chargePrincipalAndInterest: boolean
+): number {
+  const egi = analysis.effectiveGrossIncomeMonthly;
+  const pi = analysis.principalAndInterestMonthly;
+  let opex = 0;
+  for (const line of analysis.operatingExpenseLines) {
+    if (include?.[line.id] === false) continue;
+    opex += line.amount;
+  }
+  const userWantsPiInGain = include?.[RENTAL_YIELD_PI_ID] !== false;
+  const noiMonthly = egi - opex;
+  const cashFlowMonthly = noiMonthly - (userWantsPiInGain && chargePrincipalAndInterest ? pi : 0);
+  return cashFlowMonthly;
+}
+
+export function cashFlowAnnualFromYieldToggles(
+  analysis: RentalAnalysis,
+  include: Record<string, boolean> | undefined
+): number {
+  return cashFlowMonthlyFromYieldToggles(analysis, include, true) * 12;
+}
+
+/**
+ * Months after the loan is paid off: total gain uses effective gross income only
+ * (rent + other income, minus vacancy) — no property operating expenses and no P&amp;I.
+ */
+export function postPayoffMonthlyRentForGain(analysis: RentalAnalysis): number {
+  return analysis.effectiveGrossIncomeMonthly;
+}
+
+/**
+ * Sum through `exitMonths`: while the loan is active, same as {@link cashFlowMonthlyFromYieldToggles}
+ * (yield toggles, P&amp;I through payoff). After payoff, each month adds {@link postPayoffMonthlyRentForGain}
+ * (EGI only — not NOI).
+ */
+export function cumulativeCashFlowThroughExitMonths(
+  analysis: RentalAnalysis,
+  include: Record<string, boolean> | undefined,
+  loanTermYears: number,
+  exitMonths: number
+): number {
+  const termY = Math.min(30, Math.max(1, Math.round(loanTermYears)));
+  const amortMonths = termY * 12;
+  const n = Math.max(0, Math.min(360, Math.floor(exitMonths)));
+  let total = 0;
+  for (let m = 1; m <= n; m++) {
+    const loanActive = m <= amortMonths;
+    total += loanActive
+      ? cashFlowMonthlyFromYieldToggles(analysis, include, true)
+      : postPayoffMonthlyRentForGain(analysis);
+  }
+  return total;
+}

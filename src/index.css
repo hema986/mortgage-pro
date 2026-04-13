@@ -1,4 +1,4 @@
-/* Apple-style rendering baseline */
+/* Apple-style rendering + light Zillow-adjacent accents */
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -8,4 +8,9 @@ html {
 *::before,
 *::after {
   -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background-color: rgba(0, 106, 255, 0.22);
+  color: inherit;
 }

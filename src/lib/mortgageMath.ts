@@ -123,3 +123,24 @@ export function scheduleTotals(rows: AmortizationRow[]): {
   }
   return { totalInterest, totalPrincipal };
 }
+
+/**
+ * Compound annual appreciation (%) implied by purchase price, estimated present value, and full years held.
+ * Uses at least one year so the rate is well-defined.
+ */
+export function impliedAnnualAppreciationPercent(
+  purchasePrice: number,
+  presentHomeValue: number,
+  fullYearsHeld: number
+): number {
+  const p = Math.max(0, purchasePrice);
+  const v = Math.max(0, presentHomeValue);
+  const y = Math.max(1, Math.round(fullYearsHeld));
+  if (p <= 0) return 0;
+  const ratio = v / p;
+  if (ratio <= 0 || !Number.isFinite(ratio)) return 0;
+  const r = ratio ** (1 / y) - 1;
+  const pct = r * 100;
+  if (!Number.isFinite(pct)) return 0;
+  return Math.round(pct * 100) / 100;
+}

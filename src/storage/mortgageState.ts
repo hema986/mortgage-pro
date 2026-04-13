@@ -1,3 +1,6 @@
+import scenarioDefaultsJson from "../defaults/scenario-defaults.json";
+import { impliedAnnualAppreciationPercent } from "../lib/mortgageMath";
+
 export const STORAGE_KEY = "mortgage-pro:v1";
 export const SYNC_CHANNEL = "mortgage-pro-sync";
 
@@ -27,31 +30,50 @@ export type AppPersisted = {
   propertyMgmtPercent: number;
   maintenancePercent: number;
   capexPercent: number;
+  /**
+   * When to sell: optional exclusions from rental cash flow in total-gain math.
+   * If `lineId` or `"pi"` is `false`, that piece is omitted from operating costs or P&amp;I (default: all included).
+   */
+  sellRentalYieldInclude?: Record<string, boolean>;
+  /** When to sell: modeled annual appreciation on purchase price until exit (%). Derived from present value & years owned. */
+  sellAnnualAppreciationPercent: number;
+  /** When to sell: closing costs at sale as % of sale price. */
+  sellClosingCostPercent: number;
+  /** Estimated market value today (vs purchase price) — drives implied annual appreciation. */
+  currentHomeValue: number;
+  /** Whole years since purchase — used with present value to imply compound annual appreciation. */
+  yearsOwned: number;
 };
 
 /** @deprecated Use AppPersisted */
 export type MortgagePersisted = AppPersisted;
 
-export const defaultAppState = (): AppPersisted => ({
-  v: SCHEMA_VERSION,
-  homePrice: 450_000,
-  downPayment: 90_000,
-  downPaymentPercent: 20,
-  interestRateApr: 6.5,
-  termYears: 30,
-  propertyTaxAnnual: 5_400,
-  propertyTaxPercent: 1.2,
-  insuranceAnnual: 1_200,
-  hoaMonthly: 0,
-  monthlyRent: 2_800,
-  otherMonthlyIncome: 0,
-  vacancyRatePercent: 5,
-  closingCosts: 8_000,
-  miscInitialCash: 0,
-  propertyMgmtPercent: 10,
-  maintenancePercent: 8,
-  capexPercent: 5,
-});
+/**
+ * Shape of `scenario-defaults.json`. Omit `v` (always current schema) and `sellAnnualAppreciationPercent`
+ * (derived from purchase price, present value, and years owned).
+ */
+export type ScenarioDefaultsFile = Omit<AppPersisted, "v" | "sellAnnualAppreciationPercent">;
+
+/** Editable factory defaults — single source of truth is `src/defaults/scenario-defaults.json`. */
+export const SCENARIO_DEFAULTS_JSON = scenarioDefaultsJson as ScenarioDefaultsFile;
+
+export function defaultAppStateFromJson(d: ScenarioDefaultsFile): AppPersisted {
+  const yearsOwned = Math.max(1, Math.round(d.yearsOwned));
+  const sellAnnualAppreciationPercent = impliedAnnualAppreciationPercent(
+    d.homePrice,
+    d.currentHomeValue,
+    yearsOwned
+  );
+  return {
+    v: SCHEMA_VERSION,
+    ...d,
+    yearsOwned,
+    sellAnnualAppreciationPercent,
+  };
+}
+
+/** Fresh scenario (Reset, corrupt storage). Values come from `scenario-defaults.json`. */
+export const defaultAppState = (): AppPersisted => defaultAppStateFromJson(SCENARIO_DEFAULTS_JSON);
 
 export const defaultMortgageState = defaultAppState;
 
@@ -146,6 +168,17 @@ type RentalOnly = Pick<
   | "capexPercent"
 >;
 
+function parseSellRentalYieldInclude(data: Record<string, unknown>): Record<string, boolean> | undefined {
+  const raw = data.sellRentalYieldInclude;
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "boolean") out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function parseRentalFields(data: Record<string, unknown>, base: AppPersisted): RentalOnly {
   return {
     monthlyRent: num(data.monthlyRent, base.monthlyRent),
@@ -171,11 +204,24 @@ export function parseMortgageState(raw: string | null): AppPersisted {
       const m1 = { ...m0, ...d };
       const t = normalizePropertyTax(m1, data, base);
       const m = { ...m1, ...t };
-      return {
+      const merged: AppPersisted = {
         ...base,
         ...m,
         ...parseRentalFields({}, base),
         v: SCHEMA_VERSION,
+      };
+      const yearsOwned = Math.max(1, Math.round(merged.yearsOwned));
+      const apr = merged.sellAnnualAppreciationPercent;
+      const currentHomeValue = merged.homePrice * (1 + apr / 100) ** yearsOwned;
+      return {
+        ...merged,
+        yearsOwned,
+        currentHomeValue,
+        sellAnnualAppreciationPercent: impliedAnnualAppreciationPercent(
+          merged.homePrice,
+          currentHomeValue,
+          yearsOwned
+        ),
       };
     }
 
@@ -189,10 +235,31 @@ export function parseMortgageState(raw: string | null): AppPersisted {
     const t = normalizePropertyTax(m1, data, base);
     const m = { ...m1, ...t };
     const r = parseRentalFields(data, base);
+    const y = parseSellRentalYieldInclude(data);
+    const yearsOwned = Math.max(1, Math.round(num(data.yearsOwned, base.yearsOwned)));
+    const sellAprStored = num(data.sellAnnualAppreciationPercent, base.sellAnnualAppreciationPercent);
+    const hasExplicitPresent =
+      data.currentHomeValue !== undefined &&
+      data.currentHomeValue !== null &&
+      data.currentHomeValue !== "" &&
+      Number.isFinite(Number(data.currentHomeValue));
+    const currentHomeValue = hasExplicitPresent
+      ? Math.max(0, Number(data.currentHomeValue))
+      : m.homePrice * (1 + sellAprStored / 100) ** yearsOwned;
+    const sellAnnualAppreciationPercent = impliedAnnualAppreciationPercent(
+      m.homePrice,
+      currentHomeValue,
+      yearsOwned
+    );
     return {
       v: SCHEMA_VERSION,
       ...m,
       ...r,
+      yearsOwned,
+      currentHomeValue,
+      sellAnnualAppreciationPercent,
+      sellClosingCostPercent: num(data.sellClosingCostPercent, base.sellClosingCostPercent),
+      ...(y !== undefined ? { sellRentalYieldInclude: y } : {}),
     };
   } catch {
     return defaultAppState();
@@ -203,13 +270,3 @@ export function serializeMortgageState(state: AppPersisted): string {
   return JSON.stringify({ ...state, v: SCHEMA_VERSION });
 }
 
-/** Import from a `.json` file; accepts legacy v1 or current v2. */
-export function tryParseMortgageJson(raw: string): AppPersisted | null {
-  try {
-    const data = JSON.parse(raw) as { v?: unknown };
-    if (data.v !== SCHEMA_VERSION && data.v !== SCHEMA_VERSION_LEGACY) return null;
-    return parseMortgageState(JSON.stringify(data));
-  } catch {
-    return null;
-  }
-}

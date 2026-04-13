@@ -1,7 +1,10 @@
 import type { AppPersisted } from "../storage/mortgageState";
 import type { AmortizationRow } from "./mortgageMath";
 import { buildAmortizationSchedule, computeMonthlyPayment } from "./mortgageMath";
-import { computeRentalAnalysis } from "./rentalMath";
+import {
+  computeRentalAnalysis,
+  cumulativeCashFlowThroughExitMonths,
+} from "./rentalMath";
 
 export type SellYearRow = {
   year: number;
@@ -9,14 +12,20 @@ export type SellYearRow = {
   futureHomeValue: number;
   balance30: number;
   balance15: number;
+  /** Remaining balance on the mortgage tab loan term (10–30 yr). */
+  balanceUserTerm: number;
   equity30: number;
   equity15: number;
+  equityUserTerm: number;
   netProceeds30: number;
   netProceeds15: number;
+  netProceedsUserTerm: number;
   cumInterest30: number;
   cumInterest15: number;
+  cumInterestUserTerm: number;
   equityPct30: number;
   equityPct15: number;
+  equityPctUserTerm: number;
 };
 
 export function balanceAfterPaymentMonth(schedule: AmortizationRow[], paymentMonth: number): number {
@@ -82,32 +91,42 @@ export function buildSellYearlyRows(
   baseHomePrice: number,
   appreciationPctAnnual: number,
   sellingCostPct: number,
-  maxYears: number
+  maxYears: number,
+  userTermYears: number
 ): SellYearRow[] {
+  const termY = Math.min(30, Math.max(1, Math.round(userTermYears)));
   const s30 = buildAmortizationSchedule(loanAmount, apr, 30);
   const s15 = buildAmortizationSchedule(loanAmount, apr, 15);
+  const sUser = buildAmortizationSchedule(loanAmount, apr, termY);
   const rows: SellYearRow[] = [];
   for (let year = 1; year <= maxYears; year++) {
     const month = year * 12;
     const fv = futureHomeValue(baseHomePrice, appreciationPctAnnual, year);
     const b30 = balanceAfterPaymentMonth(s30, month);
     const b15 = balanceAfterPaymentMonth(s15, month);
+    const bUser = balanceAfterPaymentMonth(sUser, month);
     const e30 = fv - b30;
     const e15 = fv - b15;
+    const eUser = fv - bUser;
     rows.push({
       year,
       month,
       futureHomeValue: fv,
       balance30: b30,
       balance15: b15,
+      balanceUserTerm: bUser,
       equity30: e30,
       equity15: e15,
+      equityUserTerm: eUser,
       netProceeds30: netProceedsAtSale(fv, b30, sellingCostPct),
       netProceeds15: netProceedsAtSale(fv, b15, sellingCostPct),
+      netProceedsUserTerm: netProceedsAtSale(fv, bUser, sellingCostPct),
       cumInterest30: cumulativeInterestThroughMonth(s30, month),
       cumInterest15: cumulativeInterestThroughMonth(s15, month),
+      cumInterestUserTerm: cumulativeInterestThroughMonth(sUser, month),
       equityPct30: equityPctOfValue(fv, b30),
       equityPct15: equityPctOfValue(fv, b15),
+      equityPctUserTerm: equityPctOfValue(fv, bUser),
     });
   }
   return rows;
@@ -132,7 +151,7 @@ export function yearsFromMonths(months: number): number {
 }
 
 /** Standard exit horizons for the “real wealth” summary table. */
-export const REAL_WEALTH_MILESTONE_YEARS = [3, 5, 7, 10, 15] as const;
+export const REAL_WEALTH_MILESTONE_YEARS = [3, 5, 7, 10, 15, 20, 25, 30] as const;
 
 export type RealWealthExitSnapshot = {
   year: number;
@@ -142,24 +161,30 @@ export type RealWealthExitSnapshot = {
   interestToBank30: number;
   /** Same, 15-yr amortization. */
   interestToBank15: number;
+  /** Interest on the Mortgage tab loan term through exit. */
+  interestToBankUserTerm: number;
   /** Principal dollars that paid down the 30-yr loan through exit (loan − remaining balance). */
   principalPaidIntoLoan30: number;
   principalPaidIntoLoan15: number;
+  principalPaidIntoLoanUserTerm: number;
   /**
-   * Sum of modeled annual rental cash flow (EGI − OpEx − P&I) × years, using P&I for that loan term.
-   * Constant rent/Opex path; not discounted.
+   * Sum of monthly amounts through exit: yield-adjusted cash while the loan is active; after payoff,
+   * effective gross income only (no OpEx). Not discounted.
    */
   cumulativeRentalCashFlow30: number;
   cumulativeRentalCashFlow15: number;
+  cumulativeRentalCashFlowUserTerm: number;
   futureHomeValue: number;
   netProceeds30: number;
   netProceeds15: number;
+  netProceedsUserTerm: number;
   /**
    * Net cash at sale + cumulative rental cash − upfront cash (down + closing + misc).
    * Interest is not subtracted again — it is already inside rental cash flow via P&I.
    */
   realWealthMade30: number;
   realWealthMade15: number;
+  realWealthMadeUserTerm: number;
 };
 
 /**
@@ -171,11 +196,13 @@ export function buildRealWealthExitSnapshots(
   loanAmount: number,
   apr: number,
   sellRows: SellYearRow[],
-  years: readonly number[]
+  years: readonly number[],
+  sellRentalYieldInclude?: Record<string, boolean>
 ): RealWealthExitSnapshot[] {
   const hp = Math.max(0, state.homePrice);
   const dp = Math.max(0, state.downPayment);
 
+  const termY = Math.min(30, Math.max(1, Math.round(state.termYears)));
   const m30 = computeMonthlyPayment(
     hp,
     dp,
@@ -194,12 +221,23 @@ export function buildRealWealthExitSnapshots(
     state.insuranceAnnual,
     state.hoaMonthly
   );
+  const mUser = computeMonthlyPayment(
+    hp,
+    dp,
+    apr,
+    termY,
+    state.propertyTaxAnnual,
+    state.insuranceAnnual,
+    state.hoaMonthly
+  );
   const r30 = computeRentalAnalysis(state, m30);
   const r15 = computeRentalAnalysis(state, m15);
+  const rUser = computeRentalAnalysis(state, mUser);
   const initial = r30.initialCashInvested;
 
   const s30 = buildAmortizationSchedule(loanAmount, apr, 30);
   const s15 = buildAmortizationSchedule(loanAmount, apr, 15);
+  const sUser = buildAmortizationSchedule(loanAmount, apr, termY);
 
   const out: RealWealthExitSnapshot[] = [];
   for (const year of years) {
@@ -209,27 +247,36 @@ export function buildRealWealthExitSnapshots(
     const months = year * 12;
     const int30 = cumulativeInterestThroughMonth(s30, months);
     const int15 = cumulativeInterestThroughMonth(s15, months);
+    const intUser = cumulativeInterestThroughMonth(sUser, months);
     const bal30 = balanceAfterPaymentMonth(s30, months);
     const bal15 = balanceAfterPaymentMonth(s15, months);
+    const balUser = balanceAfterPaymentMonth(sUser, months);
     const prin30 = Math.max(0, loanAmount - bal30);
     const prin15 = Math.max(0, loanAmount - bal15);
-    const cf30 = r30.cashFlowAnnual * year;
-    const cf15 = r15.cashFlowAnnual * year;
+    const prinUser = Math.max(0, loanAmount - balUser);
+    const cf30 = cumulativeCashFlowThroughExitMonths(r30, sellRentalYieldInclude, 30, months);
+    const cf15 = cumulativeCashFlowThroughExitMonths(r15, sellRentalYieldInclude, 15, months);
+    const cfUser = cumulativeCashFlowThroughExitMonths(rUser, sellRentalYieldInclude, termY, months);
 
     out.push({
       year,
       initialCashInvested: initial,
       interestToBank30: int30,
       interestToBank15: int15,
+      interestToBankUserTerm: intUser,
       principalPaidIntoLoan30: prin30,
       principalPaidIntoLoan15: prin15,
+      principalPaidIntoLoanUserTerm: prinUser,
       cumulativeRentalCashFlow30: cf30,
       cumulativeRentalCashFlow15: cf15,
+      cumulativeRentalCashFlowUserTerm: cfUser,
       futureHomeValue: row.futureHomeValue,
       netProceeds30: row.netProceeds30,
       netProceeds15: row.netProceeds15,
+      netProceedsUserTerm: row.netProceedsUserTerm,
       realWealthMade30: row.netProceeds30 + cf30 - initial,
       realWealthMade15: row.netProceeds15 + cf15 - initial,
+      realWealthMadeUserTerm: row.netProceedsUserTerm + cfUser - initial,
     });
   }
   return out;
